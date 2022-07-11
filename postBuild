@@ -1,0 +1,22 @@
+#!/bin/bash
+set -ex
+
+mkdir lib
+git clone https://github.com/DLab/KaXim.git
+git checkout Develop
+cd KaXim/src/grammar
+make
+cd -
+cd KaXim/Lib
+make all
+cp libKaXim.so ~/lib/
+
+cd ../LibDebug
+make all
+cp libKaXim.so ~/lib/libKaXimDebug.so
+
+cd ../src/bindings
+make all
+cp *.so ~/lib/
+
+export PATH=~/lib:$PATH

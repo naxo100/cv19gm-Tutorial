@@ -1,0 +1,136 @@
+# Pandemic Suite Configuration File		
+
+title = 'Example of a SEIRHVD Configuration File'
+date = '2021-06-01'
+user = ''
+
+[model]
+	name = "SEIRHVD"
+	compartments  = ['S','S_v','E','E_v','Im','Icr','Iv','R','H','D'] # Nombres de los estados
+	
+[data]
+	# Real data will set initial conditions and will be available to be plotted and to calculate errors	
+	datafile = false # File path for importing data from file 
+	importdata = false # Import data from external source
+
+	# parameters to use when importing from external sources 
+	initdate = ''
+	country = ''
+	state = ''
+	county = ''#'13101'
+	loc_name= '' # optional 
+	
+[parameters]
+	[parameters.static]
+	t_init = 0 # Initial day
+	t_end = 200 # Final day
+	timestep = 0.01 # Timestep for solver
+	
+	# Saturation dynamic
+	k_I = 0
+	k_R = 0
+
+	popfraction = 1 # Fraction of the total population that take part on the dynamic at the beginning
+	### from SEIR model
+	# subreport
+	pI_det = 1
+
+	
+	
+	[parameters.dynamic]
+		
+	# Contagion and movility
+	alpha = '{"function":"Events","values":[1.0,0.75,0.5,1.3],"days":[[0,30],[30,60],[60,85],[85,500]]}' #
+	beta = 0.2		#not dynamic
+	beta_v = 0.05
+	
+	# Vaccination
+	vac_d = 50 # Vaccines per day
+	vac_eff = 0.9 # Vaccine effectivity
+
+	# -------------------------- #
+	#   Transition Parameters    # 
+	# -------------------------- #
+	# Exposed
+	pE_Im = 0.90
+	tE_Im = 3.0 
+	pE_Icr = 0.1
+	tE_Icr = 3.0 
+
+	# Vaccinated exposed
+	tEv_Iv = 3.0 
+
+	# Infectious (asymptomatic + mild + severe)
+        tIm_R = 12.0 
+	
+	# Infectious (critical)
+        tIcr_H = 7.0
+    
+	# Infectious (vaccinated)
+        pIv_R = 0.95
+        tIv_R = 12.0 
+
+        pIv_H = 0.05
+        tIv_H = 7.0
+        
+        # Hospitalized (IMV)
+        pH_R = 0.7
+        tH_R = 11
+        
+        pH_D = 0.3
+        tH_D = 11
+	
+	# Immunity loss 
+	pR_S = 0 # probability
+	tR_S = 90 # time
+	
+	# Subreport: Detected infected are calculated from the real infected given in the IC
+	pIcr_det = 1	
+	pIm_det = 0.7
+	pIv_det = 0.7
+	
+	[parameters.RBM]
+	runs = 1
+	verbose_lvl = 4
+
+	
+	
+[initialconditions]
+
+	population = 50000
+	
+	### Initial base populations for SEIRHD
+	#S = *				#Initial Susceptible calculated as (population -E -I -R -H -D) 
+	mu = 0.298			#Initial Exposed based on initial infected -> E(0) = mu*I(0)
+	#E = 0				#initial Exposed (int for quantity, float for % of population)
+	I = 0.01			#initial Infected (int for quantity, float for % of population)
+	#R = 0				#initial Recovered (int for quantity, float for % of population)
+	#H = 0				#initial Hospitalized (int for quantity, float for % of population)
+	#D = 0				#initial Dead (int for quantity, float for % of population)
+	
+	### Initial Vaccinated (proportion of initial SEIRH)
+	V = 0				#initial total Vaccinated distributed among SEIR (int for quantity, float for % of S,E,I,R)
+	#Sv = 0				#initial Vacc. Susceptible (int for quantity, float for % of Susceptible)
+	#Ev = 0				#initial Vacc. Exposed (int for quantity, float for % of Exposed)
+	#Iv = 0				#initial Vacc. Infected (int for quantity, float for % of Infected)
+	#Rv = 0				#initial Vacc. Recovered (int for quantity, float for % of Recovered)
+	#Hv = 0				#initial Hospitalized (int for quantity, float for % of Hospitalized)
+	
+	### FLUX (as fixed values or proportions of population)
+	Flux = 0			#Total Flux distributed among SEIR (int for quantity, float for % of S,E,I,R)
+	#S_f = 0			#Flux of Susceptible (int for quantity, float for % of population)
+	#E_f = 0			#Flux of Exposed (int for quantity, float for % of population)
+	#I_f = 0			#Flux of Infected (int for quantity, float for % of population)
+	#R_f = 0			#Flux of Recovered (int for quantity, float for % of population)
+	
+	V_f = 0				#Flux of total Vaccinated distributed among SEIR (int for quantity, float for % of S,E,I,R fluxes)
+	#Sv_f = 0			#Flux of Vacc. Susceptible (int for quantity, float for % of Susceptible flux)
+	#Ev_f = 0			#Flux of Vacc. Exposed (int for quantity, float for % of Exposed flux)
+	#Iv_f = 0			#Flux of Vacc. Infected (int for quantity, float for % of Infected flux)
+	#Rv_f = 0			#Flux of Vacc. Recovered (int for quantity, float for % of Recovered flux)
+		
+	# Hosp. capacity
+	H_cap = 100 		#(int for quantity, float for % population)
+
+
+
