@@ -3,11 +3,12 @@ set -ex
 
 mkdir lib
 git clone https://github.com/DLab/KaXim.git
+cd KaXim
 git checkout Develop
-cd KaXim/src/grammar
+cd src/grammar
 make
 cd -
-cd KaXim/Lib
+cd Lib
 make all
 cp libKaXim.so ~/lib/
 
