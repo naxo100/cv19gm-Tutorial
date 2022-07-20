@@ -2,6 +2,8 @@
 set -ex
 
 mkdir lib
+CPLUS_INCLUDE_PATH="~/lib/:$CPLUS_INCLUDE_PATH" ## for Cpp compiler
+export CPLUS_INCLUDE_PATH
 #mkdir build_eigen
 #git clone https://gitlab.com/libeigen/eigen.git
 #cd build_eigen
