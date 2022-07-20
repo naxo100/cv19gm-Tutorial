@@ -2,12 +2,12 @@
 set -ex
 
 mkdir lib
-mkdir build_eigen
-git clone https://gitlab.com/libeigen/eigen.git
-cd build_eigen
-cmake ../eigen
-make install
-cd ..
+#mkdir build_eigen
+#git clone https://gitlab.com/libeigen/eigen.git
+#cd build_eigen
+#cmake ../eigen
+#make install
+#cd ..
 
 git clone https://github.com/DLab/KaXim.git
 cd KaXim
