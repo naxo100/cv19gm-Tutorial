@@ -1,5 +1,16 @@
 numpy
-scipy
 pandas
+datetime
+multiprocess
+joblib
+scipy
+dill
+requests
+pathlib
+flask
+flask_cors
 matplotlib
+ipython
+pygmo
 pybind11
+toml
