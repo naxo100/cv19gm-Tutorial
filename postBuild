@@ -1,16 +1,6 @@
 #!/bin/bash
-set -ex
 
-echo "export LD_LIBRARY_PATH=$HOME/lib:$LD_LIBRARY_PATH" >> .bashrc
 mkdir lib
-CPLUS_INCLUDE_PATH="~/lib/:$CPLUS_INCLUDE_PATH" ## for Cpp compiler
-export CPLUS_INCLUDE_PATH
-#mkdir build_eigen
-#git clone https://gitlab.com/libeigen/eigen.git
-#cd build_eigen
-#cmake ../eigen
-#make install
-#cd ..
 
 git clone https://github.com/DLab/KaXim.git
 cd KaXim
@@ -32,5 +22,3 @@ g++ -O3 -shared -fPIC `python3 -m pybind11 --includes` -I . wrapper.cpp -o KaXim
 g++ -O0 -g3 -DDEBUG -fopenmp -shared -fPIC `python3 -m pybind11 --includes` -I . wrapper.cpp -o KaXimDebug`python3-config --extension-suffix` -L$HOME/lib -lKaXimDebug -Wl,-rpath,. -I/usr/include/eigen3/
 
 cp *.so ~/lib/
-
-export PATH=~/lib:$PATH
