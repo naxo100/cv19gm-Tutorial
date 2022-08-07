@@ -11,5 +11,7 @@ ipython_config.py
 # pyenv
 .python-version
 
+*__pycache__*
+
 lib/
 *~

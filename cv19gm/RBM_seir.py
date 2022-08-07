@@ -2,11 +2,7 @@
 import toml
 import os
 import sys
-#import subprocess
 dirname = os.path.dirname(__file__)
-#import seir
-#sys.path.append(dirname+"/../../KaXim-Tutorial/script")
-#import plotting_kappa as kappa
 if(dirname+"/../lib" not in sys.path):
 	sys.path.insert(1,dirname+"/../lib")
 #import KaXimDebug as KaXim
@@ -43,95 +39,115 @@ is_rate = lambda val : val >= 0.0
 is_count = lambda val : val >= 0
 
 class Param:
-	def __init__(self,name,dflt = None,deps = None,dyn = False,func = None,is_valid = None):
+	def __init__(self,name,dflt = None,deps = None,dyn = False,func = None,is_valid = None,desc = ""):
 		self.name = name			#Name of the parameter
 		self.dflt = dflt			#default value (None if mandatory)
 		self.deps = deps			#dependencies from toml params (sorted by prevalence, space-separated) 
 		self.dyn = dyn				#True if dynamic parameter
 		self.func = func			#value = func(v = toml[param_name],p = param_name, d = values_dict)
 		self.is_valid = is_valid	#if not checks(value) then bad-parameter-definition. 
+		self.desc = desc			#A brief description of the parameter 
 		
 
-class RBM_SEIR:
+class RBM_SEIR():
 
 	STATES = ["S","E","I","R"]
 	STATES_NAMES = ["Susceptible","Exposed","Infected","Removed"]
 	
 	PARAMETERS = [
 #Initial Conditions
-		Param("population",is_valid = is_count),
-		Param("I_0",1,"I",func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count),
-		Param("E_0",0,"mu E",func = lambda v,p,d : v*d['I_0'] if p == "mu" else p_or_q(v,d['population']),is_valid = is_count),
-		Param("R_0",0,"R",func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count),
-		Param("H_0",0,"H",func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count),
-		Param("D_0",0,"D",func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count),
-		Param("S_0",0,"population",func = lambda v,p,d : v-d["E_0"]-d["I_0"]-d["R_0"]-d["H_0"]-d["D_0"],is_valid = is_count), #useful tu calc other params
+		Param("population",is_valid = is_count,
+			desc = "Initial population"),
+		Param("I_0",1,"I",func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count,
+			desc = "Initial infected, [I] as % of population if a [0,1] value is given"),
+		Param("E_0",0,"mu E",func = lambda v,p,d : v*d['I_0'] if p == "mu" else p_or_q(v,d['population']),is_valid = is_count,
+			desc = "Initial exposed, [mu] as % of I_0, [E]  as % of population if a [0,1] value is given"),
+		Param("R_0",0,"R",func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count,
+			desc = "Initial recovered, [R] as % of population if a [0,1] value is given"),
+		Param("H_0",0,"H",func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count,
+			desc = "Initial hostpitalized, [H] as % of population if a [0,1] value is given" ),
+		Param("D_0",0,"D",func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count,
+			desc = "Initial dead, [D] as % of population if a [0,1] value is given" ),
+		Param("S_0",0,"population",func = lambda v,p,d : v-d["E_0"]-d["I_0"]-d["R_0"]-d["H_0"]-d["D_0"],is_valid = is_count), #useful to calc other params
 	#vaccs
 		Param("Sv_0",0,"V_0 Sv",is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,s0: p_or_q(v,s0,s0/pop) if p == 'V_0' else p_or_q(v,s0,1))(d['population']-d['H_0']-d['D_0'],d['S_0'],),
+			func = lambda v,p,d : (lambda pop,s0: p_or_q(v,s0,s0/pop) if p == 'V_0' else p_or_q(v,s0))(d['population']-d['H_0']-d['D_0'],d['S_0']),
+			desc = "Initial vaccinated suscp., [V_0] as a % of S_0 if [0,1] value else as S_0/population % of V_0, [Sv] as % of S_0 if [0,1] value"
 		),
 		Param("Ev_0",0,"V_0 Ev",is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,e0: p_or_q(v,e0,e0/pop) if p == 'V_0' else p_or_q(v,e0,1))(d['population']-d['H_0']-d['D_0'],d['E_0'])
+			func = lambda v,p,d : (lambda pop,e0: p_or_q(v,e0,e0/pop) if p == 'V_0' else p_or_q(v,e0))(d['population']-d['H_0']-d['D_0'],d['E_0']),
+			desc = "Initial vaccinated Expsd., [V_0] as a % of E_0 if [0,1] value else as E_0/population % of V_0, [Ev] as % of E_0 if [0,1] value"
 		),
 		Param("Iv_0",0,"V_0 Iv",is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,i0: p_or_q(v,i0,i0/pop) if p == 'V_0' else p_or_q(v,i0,1))(d['population']-d['H_0']-d['D_0'],d['I_0'])
+			func = lambda v,p,d : (lambda pop,i0: p_or_q(v,i0,i0/pop) if p == 'V_0' else p_or_q(v,i0))(d['population']-d['H_0']-d['D_0'],d['I_0']),
+			desc = "Initial vaccinated infct., [V_0] as a % of I_0 if [0,1] value else as I_0/population % of V_0, [Iv] as % of I_0 if [0,1] value"
 		),
 		Param("Rv_0",0,"V_0 Rv",is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,r0: p_or_q(v,r0,r0/pop) if p == 'V_0' else p_or_q(v,r0,1))(d['population']-d['H_0']-d['D_0'],d['R_0'])
+			func = lambda v,p,d : (lambda pop,r0: p_or_q(v,r0,r0/pop) if p == 'V_0' else p_or_q(v,r0))(d['population']-d['H_0']-d['D_0'],d['R_0']),
+			desc = "Initial vaccinated rcvrd., [V_0] as a % of R_0 if [0,1] value else as R_0/population % of V_0, [Rv] as % of R_0 if [0,1] value"
 		),
 #		Param("Hv_0",0,"V_0 Hv",func = lambda v,p,d : (lambda pop,h0: p_or_q(v,h0,h0/pop) if p == 'V_0' else p_or_q(v,h0,1))(d['population'],d['H_0'])),
 #Flux
 		Param("S_f",0,"Flux S_f",dyn=True,is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,s0: p_or_q(v,s0,s0/pop) if p == 'Flux' else p_or_q(v,s0,1))(d['population']-d['H_0']-d['D_0'],d['S_0'])
+			func = lambda v,p,d : (lambda pop,s0: p_or_q(v,s0,s0/pop) if p == 'Flux' else p_or_q(v,s0))(d['population']-d['H_0']-d['D_0'],d['S_0']),
+			desc = "Suscp. flux, [Flux] as a % of S_0 if [0,1] value else as S_0/population % of Flux, [S_f] as % of S_0 if [0,1] value"
 		),
 		Param("E_f",0,"Flux E_f",dyn=True,is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,e0: p_or_q(v,e0,e0/pop) if p == 'Flux' else p_or_q(v,e0,1))(d['population']-d['H_0']-d['D_0'],d['E_0'])
+			func = lambda v,p,d : (lambda pop,e0: p_or_q(v,e0,e0/pop) if p == 'Flux' else p_or_q(v,e0))(d['population']-d['H_0']-d['D_0'],d['E_0']),
+			desc = "Expsd. flux, [Flux] as a % of E_0 if [0,1] value else as E_0/population % of Flux, [E_f] as % of E_0 if [0,1] value"
 		),
 		Param("I_f",0,"Flux I_f",dyn=True,is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,i0: p_or_q(v,i0,i0/pop) if p == 'Flux' else p_or_q(v,i0,1))(d['population']-d['H_0']-d['D_0'],d['I_0'])
+			func = lambda v,p,d : (lambda pop,i0: p_or_q(v,i0,i0/pop) if p == 'Flux' else p_or_q(v,i0))(d['population']-d['H_0']-d['D_0'],d['I_0']),
+			desc = "Infct. flux, [Flux] as a % of I_0 if [0,1] value else as I_0/population % of Flux, [I_f] as % of I_f if [0,1] value"
 		),
 		Param("R_f",0,"Flux R_f",dyn=True,is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,r0: p_or_q(v,r0,r0/pop) if p == 'Flux' else p_or_q(v,r0,1))(d['population']-d['H_0']-d['D_0'],d['R_0'])
+			func = lambda v,p,d : (lambda pop,r0: p_or_q(v,r0,r0/pop) if p == 'Flux' else p_or_q(v,r0))(d['population']-d['H_0']-d['D_0'],d['R_0']),
+			desc = "Rcvrd. flux, [Flux] as a % of R_0 if [0,1] value else as R_0/population % of Flux, [R_f] as % of R_f if [0,1] value"
 		),
 	#vaccs
-		Param("Sv_f",0,"V_f S_f",dyn=True,is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,s0: p_or_q(v,s0,s0/pop) if p == 'Flux' else p_or_q(v,s0,1))(d['population']-d['H_0']-d['D_0'],d['Sv_0'])
+		Param("Sv_f",0,"V_f Sv_f",dyn=True,is_valid = is_count,
+			func = lambda v,p,d : (lambda pop,s0: p_or_q(v,s0,s0/pop) if p == 'Flux' else p_or_q(v,s0))(d['population']-d['H_0']-d['D_0'],d['Sv_0']),
+			desc = "Vacc. Suscp. flux, [V_f] as a % of Sv_0 if [0,1] value else as Sv_0/population % of Flux, [Sv_f] as % of Sv_0 if [0,1] value"
 		),
-		Param("Ev_f",0,"V_f S_f",dyn=True,is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,e0: p_or_q(v,e0,e0/pop) if p == 'Flux' else p_or_q(v,e0,1))(d['population']-d['H_0']-d['D_0'],d['Ev_0'])
+		Param("Ev_f",0,"V_f Ev_f",dyn=True,is_valid = is_count,
+			func = lambda v,p,d : (lambda pop,e0: p_or_q(v,e0,e0/pop) if p == 'Flux' else p_or_q(v,e0))(d['population']-d['H_0']-d['D_0'],d['Ev_0']),
+			desc = "Vacc. Suscp. flux, [V_f] as a % of Ev_0 if [0,1] value else as Ev_0/population % of Flux, [Ev_f] as % of Ev_0 if [0,1] value"
 		),
-		Param("Iv_f",0,"V_f S_f",dyn=True,is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,i0: p_or_q(v,i0,i0/pop) if p == 'Flux' else p_or_q(v,i0,1))(d['population']-d['H_0']-d['D_0'],d['Iv_0'])
+		Param("Iv_f",0,"V_f Iv_f",dyn=True,is_valid = is_count,
+			func = lambda v,p,d : (lambda pop,i0: p_or_q(v,i0,i0/pop) if p == 'Flux' else p_or_q(v,i0))(d['population']-d['H_0']-d['D_0'],d['Iv_0']),
+			desc = "Vacc. Suscp. flux, [V_f] as a % of Iv_0 if [0,1] value else as Iv_0/population % of Flux, [Iv_f] as % of Iv_0 if [0,1] value"
 		),
-		Param("Rv_f",0,"V_f S_f",dyn=True,is_valid = is_count,
-			func = lambda v,p,d : (lambda pop,r0: p_or_q(v,r0,r0/pop) if p == 'Flux' else p_or_q(v,r0,1))(d['population']-d['H_0']-d['D_0'],d['Rv_0'])
+		Param("Rv_f",0,"V_f Rv_f",dyn=True,is_valid = is_count,
+			func = lambda v,p,d : (lambda pop,r0: p_or_q(v,r0,r0/pop) if p == 'Flux' else p_or_q(v,r0))(d['population']-d['H_0']-d['D_0'],d['Rv_0']),
+			desc = "Vacc. Suscp. flux, [V_f] as a % of Rv_0 if [0,1] value else as Rv_0/population % of Flux, [Rv_f] as % of Rv_0 if [0,1] value"
 		),
 #Hosp
-		Param("H_cap",0,func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count),
-		
+		Param("H_cap",0,func = lambda v,p,d : p_or_q(v,d["population"]),is_valid = is_count,
+			desc = "Hospital bed capability, as a % of population if [0,1] value"
+		),
 #Rates
-		Param("alpha",1.0,dyn=True,is_valid = is_rate),
-		Param("beta",dyn=True,is_valid = is_rate),
-		Param("beta_v",0.0,dyn=True,is_valid = is_rate),
-		Param("vac_eff",1.0,dyn=True,is_valid = is_frac),
-		Param("vac_d",0,dyn=True,is_valid = is_count),
-		Param("pE_Im",is_valid = is_frac),
-		Param("tE_Im",is_valid = is_count),
-		Param("pE_Icr",is_valid = is_frac),
-		Param("tE_Icr",is_valid = is_count),
-		Param("tEv_Iv",is_valid = is_count),# Infectious (asymptomatic + mild + severe)
-		Param("tIm_R",is_valid = is_count),
-		Param("tIcr_H",is_valid = is_count),	# Infectious (critical)
-		Param("pIv_R",is_valid = is_frac),	# Infectious (vaccinated)
-		Param("tIv_R",is_valid = is_count),
-		Param("pIv_H",is_valid = is_frac),
-		Param("tIv_H",is_valid = is_count),
-		Param("pH_R",is_valid = is_frac),		# Hospitalized (IMV)
-		Param("tH_R",is_valid = is_count),
-		Param("pH_D",is_valid = is_frac),
-		Param("tH_D",is_valid = is_count),
-		Param("pR_S",0.0,is_valid = is_frac),
-		Param("tR_S",90,is_valid = is_count)
+		Param("alpha",1.0,dyn=True,is_valid = is_rate,desc = "Movility rate"),
+		Param("beta",dyn=True,is_valid = is_rate,desc = "Contagious rate"),
+		Param("beta_v",0.0,dyn=True,is_valid = is_rate,desc = "Vaccinated contagious rate"),
+		Param("vac_eff",1.0,dyn=True,is_valid = is_frac,desc = "Vaccine effectivity rate"),
+		Param("vac_d",0,dyn=True,is_valid = is_count,desc = "Daily vaccination"),
+		Param("pE_Im",is_valid = is_frac,desc = "% to develop mild symptoms"),
+		Param("tE_Im",is_valid = is_count,desc = "Avg. days for mild symptoms incubation"),
+		Param("pE_Icr",is_valid = is_frac,desc = "% to develop critical symptoms"),
+		Param("tE_Icr",is_valid = is_count,desc = "Avg. days for critical symptoms incubation"),
+		Param("tEv_Iv",is_valid = is_count,desc = "Avg. days for vaccinated incubation"),# Infectious (asymptomatic + mild + severe)
+		Param("tIm_R",is_valid = is_count,desc = "Avg. days for mild symp. recovery"),
+		Param("tIcr_H",is_valid = is_count,desc = "Avg. days of crit. symp. hospitalization"),	# Infectious (critical)
+		Param("pIv_R",is_valid = is_frac,desc = "% of vaccinated recovery"),	# Infectious (vaccinated)
+		Param("tIv_R",is_valid = is_count,desc = "Avg. days for vaccinated recovery"),
+		Param("pIv_H",is_valid = is_frac,desc = "% of vaccinated hospitalization"),
+#		Param("tIv_H",is_valid = is_count,desc = "Avg. days for vaccinated hospitalization"),
+		Param("pH_R",is_valid = is_frac,desc = "% of hosp. recovery"),		# Hospitalized (IMV)
+		Param("tH_R",is_valid = is_count,desc = "Avg. days for hosp. recovery"),
+		Param("pH_D",is_valid = is_frac,desc = "% of hosp. deaths"),
+		Param("tH_D",is_valid = is_count,desc = "Avg. days for hosp. death"),
+		Param("pR_S",0.0,is_valid = is_frac,desc = "% of loss immunity"),
+		Param("tR_S",90,is_valid = is_count,desc = "Avg. days for immunity loss")
 	]
 
 	def __init__(self,config,**kwargs):
@@ -359,5 +375,22 @@ class RBM_SEIR:
 	
 	def solve(self,t0=0,T=None,h=0.01):
 		return self.kappa_sim(False)
+
+	@classmethod
+	def paramInfo(cls):
+		import pandas as pd
+		tab = []
+		for param in cls.PARAMETERS:
+			if param.desc == "":
+				continue
+			l = [param.name,param.deps,param.dflt,param.dyn,param.desc]
+			tab.append(l)
+		df = pd.DataFrame(tab,columns = ["Name","Alias","Default","Dynamic","Description"])
+		import tabulate
+		print(tabulate.tabulate(df,headers = 'keys'))
+		return df
+
+
+
 
 

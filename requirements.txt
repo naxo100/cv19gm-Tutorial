@@ -14,3 +14,4 @@ ipython
 pygmo
 pybind11
 toml
+tabulate
