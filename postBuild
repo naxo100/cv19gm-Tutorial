@@ -1,5 +1,14 @@
 #!/bin/bash
 
+git clone https://gitlab.com/libeigen/eigen.git
+cd eigen
+git checkout 3.4
+mkdir build
+cd build
+cmake ..
+make install
+cd ~/
+
 mkdir lib
 
 git clone https://github.com/DLab/KaXim.git

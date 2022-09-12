@@ -1,0 +1,255 @@
+%params:  'alpha','beta', 'population','E_0','I_0','R_0', 't_EI','t_IR','r_RS', 'S_f','E_f','I_f','R_f', 'k_I','k_R','r_vac',\
+			'H','D','pE_Im', 'tE_Im','pE_Icr','tE_Icr',\
+			'H_cap', 'H_d','tIm_R','tIcr_H','pH_R','tH_R','pH_D','tH_D'
+
+%param: 'alpha'	1.0
+%param: 'beta'	0.2
+%param: 'population'		100000
+# %param: 'S_0'	
+%param: 'E_0'	0
+%param: 'I_0'	1
+%param: 'R_0'	0
+%param: 't_EI'	5
+%param: 't_IR'	10
+%param: 'r_RS'	0.0
+%param: 'S_f'	0
+%param: 'E_f'	0
+%param: 'I_f'	0
+%param: 'R_f'	0
+%param: 'k_I'	1.0
+%param: 'k_R'	1.0
+%param: 'r_vac'	0.005
+
+%param: 'H' 0
+%param: 'D' 0
+%param: 'pE_Im' 0.95
+%param: 'tE_Im' 5
+%param: 'pE_Icr' 0.05
+%param: 'tE_Icr' 5
+%param: 'H_cap' 70
+%param: 'H_d' 0
+%param: 'tIm_R' 10
+%param: 'tIcr_H' 7
+%param: 'pH_R' 0.7
+%param: 'tH_R' 11
+%param: 'pH_D' 0.3
+%param: 'tH_D' 11
+
+
+%const: 'r_EI' 1.0/'t_EI'
+%const: 'r_IR' 1.0/'t_IR'
+
+
+%agent: P(s~S~E~I~R,inter~[0,[inf]]('interaction'),sympt~no~mid~sevr~crit,\
+				hosp~N~Y,tested~N~Y,R0~[0,30],t0~[.0,[inf]](.0),tf~[.0,[inf]])
+%agent: Hosp(t~UTI~UCI~V)
+
+%token: new_E
+%token: new_I
+%token: new_R
+%token: new_D
+%token: new_S
+%token: new_H
+
+
+%token: UCI
+%token: UTI
+%token: V
+%token: tested
+%token: cases
+
+
+### constants
+%const: 'S_0'		'population'-'E_0'-'I_0'-'R_0'-'H'-'D'
+
+%const: 'UTI t0'	'H_cap'
+
+%const: 'interaction' 			30			#average interactivy-rate (interactions per day)
+
+%const: '%_success'				0.0075		# % of successful interactions
+#let avrg-contagious days = 17
+%const:	'k_expose'		'%_success'#/'Pop_t0'	#30i*0.5%*17d = 2.55 -> 30i*1%*17d = 5.1
+
+%const: 'k_infect-mid'			1.0/'tE_Im'		#4-7 days after exposed
+%const: 'k_infect-sevr'			1.0/'tE_Icr'		#5 days after exposed
+
+%const: 'k_hosp-sevr'			1.0/'tIcr_H'		#3 days after infected
+
+#%const: 'k_die-mid' 			0.0			#0%
+%const: 'k_die-sevr'			1.0/('tIcr_H')		#+'tH_D'/2.0)		#3-4 days after infected (UTI collapse)
+%const: 'k_die-UTI'				'pH_D'/'tH_D'		#1-3 days after infected (UTI,V collapse)
+
+%const: 'k_discharge-UTI'		(1.0-'pH_D')/'tH_R'		#11 days after UTI (ignoring 97%)
+
+%const: 'k_recover-mid' 		1.0/'tIm_R'		#15 days after Infected
+%const: 'k_recover-sevr'		[inf]			#deleted state//10 days after Discharged
+
+
+
+
+%var: 'total-interaction' {[sum] i} P(inter~{i})
+#%var: 'unctgs-inter' {[sum] i} P(inter~{0.0001 < i})
+
+### infect-rules
+#'expose'	P(s~I,R0~{r},inter~{i1}), P(s~S,inter~{i2},t0~{t}) -> \
+#			P(R0~{r+1},...), P(s~E,t0~{[T]},...)  \
+#				@  'k_expose' * i1 * i2 / ('total-interaction') #R0 should be from 2.5 -> 5.2
+'expose'	P(s~I,hosp~N,R0~{r},inter~{i1}), P(s~S,inter~{i2},t0~{t}) -> \
+			P(R0~{r+1},...), P(s~E,t0~{[T]},...) | 1: new_E \
+				@  'alpha' * 'beta' / ('population') #R0 should be from 2.5 -> 5.2
+
+#'infect-no' 	P(s~E,sympt~no) -> P(s~I,sympt~no) | 1: cases @ 'k_infect-no'
+'infect-mid' 	P(s~E,sympt~mid) -> P(s~I,sympt~mid) | 1: cases + 1: new_I @ 'k_infect-mid'
+'infect-sevr' 	P(s~E,sympt~sevr) -> P(s~I,sympt~sevr) | 1: cases + 1: new_I @ 'k_infect-sevr'
+#'infect-crit' 	P(s~E,sympt~crit) -> P(s~I,sympt~crit) | 1: cases @ 'k_infect-crit'
+
+### hospitalization-rules
+#'hosp-sevr' P(hosp~N,s~I,sympt~sevr,inter~{i}),Hosp(t~UTI) -> \
+#			P(hosp~Y!1,inter~{'interaction'},...),Hosp(t~UTI!1) \
+#				| 1: UTI + 1: new_H @ 'k_hosp-sevr'/('Free UTI'+0.1)
+				
+'hosp-sevr' P(hosp~N,s~I,sympt~sevr) ->\
+			P(hosp~Y,...)\
+				| 1: UTI + 1: new_H @ 'k_hosp-sevr' * [not] [not] ('Free UTI')
+
+#'discharge-UTI'	P(hosp!1),Hosp(t~UTI!1) -> P(hosp),Hosp(t~UTI) @ 'k_discharge-UTI'
+'recover-UTI'	P(hosp~Y,s~I) -> P(hosp~N,s~R) @ 'k_discharge-UTI'
+
+'die-sevr' 		P(s~I,hosp~N,sympt~sevr,inter~{i},tf~{t}) -> \
+				P(s~R,inter~{0.0},tf~{[T]},...) | 1: new_D @ 'k_die-sevr'*[not] 'Free UTI'
+
+#'die-UTI'	P(s~I,hosp!1,inter~{i},tf~{t}),Hosp(t~UTI!1) -> \
+#			P(s~R,hosp,inter~{0.0},tf~{[T]}),Hosp(t~UTI) | 1: new_D @ 'k_die-UTI'
+'die-UTI'	P(s~I,hosp~Y,inter~{i},tf~{t}) -> \
+			P(s~R,hosp~N,inter~{0.0},tf~{[T]}) | 1: new_D @ 'k_die-UTI'
+
+
+'recover-mid'	P(s~I,sympt~mid,tf~{t}) -> P(s~R,tf~{[T]},...) | 1: new_R @ 'k_recover-mid'
+#'recover-sevr'	P(s~I,sympt~sevr,hosp~Y,tf~{t}) -> \
+#				P(s~R,tf~{[T]},...) | 1: new_R @ 'k_recover-sevr'
+
+
+### init
+# S_0
+%init: 'S_0'*'pE_Im'	P(s~S,sympt~mid,inter~{'interaction'})
+%init: 'S_0'*'pE_Icr'	P(s~S,sympt~sevr,inter~{'interaction'})
+
+%init: 'E_0'*'pE_Im'	P(s~E,sympt~mid,inter~{'interaction'})
+%init: 'E_0'*'pE_Icr'	P(s~E,sympt~sevr,inter~{'interaction'})
+
+%init: 'I_0'*'pE_Im'	P(s~I,sympt~mid,inter~{'interaction'})
+%init: 'I_0'*'pE_Icr'	P(s~I,sympt~sevr,inter~{'interaction'})
+
+%init: 'R_0'*'pE_Im'	P(s~R,sympt~mid,inter~{'interaction'})
+%init: 'R_0'*'pE_Icr'	P(s~R,sympt~sevr,inter~{'interaction'})
+
+%init: 'D'			P(s~R,sympt~sevr,inter~{0.0})
+
+
+%init: 'H'			P(s~I,sympt~sevr,hosp~Y!1,inter~{'interaction'}),Hosp(t~UTI!1)
+
+%init: 'UTI t0'-'H' Hosp(t~UTI)
+
+
+#perturbations
+#every 4 days 1 P(mid)
+#%mod: repeat ([T] [mod] 3) = 0.0 do $ADD 1 P(s~E,sympt~mid,ctgs~Y,t0~{[T]}) \
+#		until 'Contagious' > 50
+#every 6 days 1 P(no)
+#%mod: repeat ([T] [mod] 4) = 0.0 do $ADD 1 P(s~E,sympt~no,ctgs~Y,t0~{[T]}) \
+#		until 'Contagious' > 50
+
+#quarantine at 19 tested
+#%token: lockdown_count
+#%var: 'lockdown' 0.0
+#%const: 'lockdown_pop' 0.5
+#%const: 'inter-lockdown' 5.0
+
+#%mod: |tested| > 18 do $UPDATE 'lockdown' [inf]
+#'apply lockdown' P(inter~{'inter-lockdown'+1 < i}) -> P(inter~{'inter-lockdown'}) | 1: lockdown_count @ 'lockdown'
+#%mod: |lockdown_count| > 'lockdown_pop'*('Pop_t0'-'Dead'-'UCI-beds'-'UTI-beds') \
+#		do $UPDATE 'lockdown' 0.0
+
+
+%var: 'P(sympt~no)' P(R0~{r},t0~{t0},tf~{tf},s~R,sympt~no)
+%var: 'P(sympt~mid)' P(R0~{r},t0~{t0},tf~{tf},s~R,sympt~mid)
+%var: 'P(sympt~sevr)' P(R0~{r},t0~{t0},tf~{tf},s~R,sympt~sevr)
+%var: 'P(sympt~crit)' P(R0~{r},t0~{t0},tf~{tf},s~R,sympt~crit)
+
+%const: 'l1' 20
+%const: 'l2' 35
+%const: 'l3' 55
+%const: 'l4' 70
+
+%var: 'P(t0 < "l1",sympt~no)' P(R0~{r},t0~{t0 < 'l1'},tf~{tf},s~R,sympt~no)
+%var: 'P("l1" < t0 < "l2",sympt~no)' P(R0~{r},t0~{'l1' < t0 < 'l2'},tf~{tf},s~R,sympt~no)
+%var: 'P("l2" < t0 < "l3",sympt~no)' P(R0~{r},t0~{'l2' < t0 < 'l3'},tf~{tf},s~R,sympt~no)
+%var: 'P("l3" < t0 < "l4",sympt~no)' P(R0~{r},t0~{'l3' < t0 < 'l4'},tf~{tf},s~R,sympt~no)
+%var: 'P("l4" < t0,sympt~no)' P(R0~{r},t0~{t0},tf~{'l4' < tf},s~R,sympt~no)
+
+%var: 'P(t0 < "l1",sympt~mid)' P(R0~{r},t0~{t0 < 'l1'},tf~{tf},s~R,sympt~mid)
+%var: 'P("l1" < t0 < "l2",sympt~mid)' P(R0~{r},t0~{'l1' < t0 < 'l2'},tf~{tf},s~R,sympt~mid)
+%var: 'P("l2" < t0 < "l3",sympt~mid)' P(R0~{r},t0~{'l2' < t0 < 'l3'},tf~{tf},s~R,sympt~mid)
+%var: 'P("l3" < t0 < "l4",sympt~mid)' P(R0~{r},t0~{'l3' < t0 < 'l4'},tf~{tf},s~R,sympt~mid)
+%var: 'P("l4" < t0,sympt~mid)' P(R0~{r},t0~{t0},tf~{'l4' < tf},s~R,sympt~mid)
+
+%var: 'P(t0 < "l1",sympt~sevr)' P(R0~{r},t0~{t0 < 'l1'},tf~{tf},s~R,sympt~sevr)
+%var: 'P("l1" < t0 < "l2",sympt~sevr)' P(R0~{r},t0~{'l1' < t0 < 'l2'},tf~{tf},s~R,sympt~sevr)
+%var: 'P("l2" < t0 < "l3",sympt~sevr)' P(R0~{r},t0~{'l2' < t0 < 'l3'},tf~{tf},s~R,sympt~sevr)
+%var: 'P("l3" < t0 < "l4",sympt~sevr)' P(R0~{r},t0~{'l3' < t0 < 'l4'},tf~{tf},s~R,sympt~sevr)
+%var: 'P("l4" < t0,sympt~sevr)' P(R0~{r},t0~{t0},tf~{'l4' < tf},s~R,sympt~sevr)
+
+%var: 'P(t0 < "l1",sympt~crit)' P(R0~{r},t0~{t0 < 'l1'},tf~{tf},s~R,sympt~crit)
+%var: 'P("l1" < t0 < "l2",sympt~crit)' P(R0~{r},t0~{'l1' < t0 < 'l2'},tf~{tf},s~R,sympt~crit)
+%var: 'P("l2" < t0 < "l3",sympt~crit)' P(R0~{r},t0~{'l2' < t0 < 'l3'},tf~{tf},s~R,sympt~crit)
+%var: 'P("l3" < t0 < "l4",sympt~crit)' P(R0~{r},t0~{'l3' < t0 < 'l4'},tf~{tf},s~R,sympt~crit)
+%var: 'P("l4" < t0,sympt~crit)' P(R0~{r},t0~{t0},tf~{'l4' < tf},s~R,sympt~crit)
+
+#%mod: [END_SIM] do $HISTOGRAM(10) "hist/R0" {r} [\
+#		'P(t0 < "l1",sympt~no)','P(t0 < "l1",sympt~mid)','P(t0 < "l1",sympt~sevr)','P(t0 < "l1",sympt~crit)',\
+#		'P("l1" < t0 < "l2",sympt~no)','P("l1" < t0 < "l2",sympt~mid)','P("l1" < t0 < "l2",sympt~sevr)','P("l1" < t0 < "l2",sympt~crit)',\
+#		'P("l2" < t0 < "l3",sympt~no)','P("l2" < t0 < "l3",sympt~mid)','P("l2" < t0 < "l3",sympt~sevr)','P("l2" < t0 < "l3",sympt~crit)',\
+#		'P("l3" < t0 < "l4",sympt~no)','P("l3" < t0 < "l4",sympt~mid)','P("l3" < t0 < "l4",sympt~sevr)','P("l3" < t0 < "l4",sympt~crit)',\
+#		'P("l4" < t0,sympt~no)','P("l4" < t0,sympt~mid)','P("l4" < t0,sympt~sevr)','P("l4" < t0,sympt~crit)'\
+#	]
+
+#%mod: [END_SIM] do $HISTOGRAM(10) "hist/ctgs-time" {tf-t0} \
+#		['P(sympt~no)','P(sympt~mid)','P(sympt~sevr)','P(sympt~crit)']
+
+
+%var: 'susc' P(s~S)
+%var: 'infected' P(s~I)
+
+#OBS
+%obs: 'Susceptible'	P(s~S)
+%obs: 'Exposed'		P(s~E)
+%obs: 'Infected'	'infected'
+%obs: 'Removed'		P(s~R,inter~{0.001 <= i})
+%obs: 'Dead'		P(s~R,inter~{0.0})
+
+
+%obs: 'Daily Exposed' |new_E|
+%obs: 'Daily Infected' |new_I|
+%obs: 'Daily Removed' |new_R|
+%obs: 'Daily Dead'		|new_D|
+%obs: 'Daily Inmunized' |new_S|
+%obs: 'Daily Hosp'		|new_H|
+
+%mod: repeat ([T] [mod] 1) = 0.001 do new_E <- 0; new_I <- 0; new_R <- 0; new_D <- 0; new_S <- 0; new_H <- 0 until [false]
+
+
+#%obs: 'Free UTI'	Hosp(t~UTI)
+%var: 'Hosp'		P(hosp~Y)
+%obs: 'Free UTI'	'H_cap' - 'Hosp' 
+
+
+
+#%obs: 'Tested' 	|tested|
+%obs: 'Ac.Infected' |cases|
+#%obs: 'Ac.UCI'		|UCI|
+%obs: 'Ac.UTI'		|UTI|
+
+
+
+
+
